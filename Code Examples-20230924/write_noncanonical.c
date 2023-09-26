@@ -100,11 +100,24 @@ int main(int argc, char *argv[])
     // In non-canonical mode, '\n' does not end the writing.
     // Test this condition by placing a '\n' in the middle of the buffer.
     // The whole buffer must be sent even with the '\n'.
-    buf[5] = '\n';
+    // buf[5] = '\n';
 
-    int bytes = write(fd, buf, BUF_SIZE);
+    
+    // int bytes = write(fd, buf, BUF_SIZE);
+    unsigned char flag = 0x7E;
+    unsigned char addr = 0x03;
+    unsigned char ctrl = 0x03;
+    unsigned char bcc = addr ^ ctrl;
+    unsigned char buf[6] = { flag, addr, ctrl, bcc, flag, 0x00 };
+    int bytes = write(fd, buf, 5);
     printf("%d bytes written\n", bytes);
 
+    bytes = read(fd, buf, 5);
+    buf[bytes] = '\0';
+    if (buf[0] == flag && buf[4] == flag && buf[1] == 0x01 && buf[2] == 0x07 && buf[3] == 0x01 ^ 0x07) {
+        printf(":%s:%d\n", buf, bytes);
+    }
+    
     // Wait until all bytes have been written to the serial port
     sleep(1);
 
