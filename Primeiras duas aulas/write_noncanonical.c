@@ -27,7 +27,7 @@ volatile int STOP = FALSE;
 #define SET 0x03
 #define UA 0x07
 
-void memedump(void *addr, size_t bytes) {
+void memdump(void *addr, size_t bytes) {
     for (size_t i = 0; i < bytes; ++i)
         printf("%02x ", *((char*) addr + i));
 }
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
     // Create string to send
     unsigned char buf[BUF_SIZE] = {0};
 
-    buf[0] = FALG;
+    buf[0] = FLAG;
     buf[1] = 0x03;
     buf[2] = SET;
     buf[3] = buf[1] ^ buf[2];
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
         printf("UA frame received: ");
         memdump(buf, 5);
 
-        char expected[5] = {FALG, 0x03, UA, 0x03 ^ UA, FLAG};
+        char expected[5] = {FLAG, 0x03, UA, 0x03 ^ UA, FLAG};
         printf("Expected frame: ");
         for (size_t i = 0; i < 5; ++i)
             printf("%02x ", expected[i]);
