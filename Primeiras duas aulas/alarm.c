@@ -13,6 +13,9 @@ int alarmEnabled = FALSE;
 int alarmCount = 0;
 
 // Alarm function handler
+// This function will be called when the alarm is triggered
+ // Can be used to change a flag that increases the number of alarms
+
 void alarmHandler(int signal)
 {
     alarmEnabled = FALSE;
