@@ -21,18 +21,26 @@
 
 #define BUF_SIZE 5
 
+#define FLAG 0x7E
+#define A 0x03
+#define C_SET 0x03
+
+typedef enum {START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP} State;
+
 void memdump (void *addr, size_t bytes) {
     for (size_t i = 0; i < bytes; i++) {
         printf("%02x ", *((char*) addr + i));
     }
 }
 
-volatile int STOP = FALSE;
+//volatile int STOP = FALSE;
 
 int main(int argc, char *argv[])
 {
     // Program usage: Uses either COM1 or COM2
     const char *serialPortName = argv[1];
+    unsigned char byte;
+    State state = START;  // Initialize state
 
     if (argc < 2)
     {
@@ -73,7 +81,7 @@ int main(int argc, char *argv[])
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VMIN] = 5;  // Blocking read until 1 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -94,9 +102,74 @@ int main(int argc, char *argv[])
 
     printf("New termios structure set\n");
 
+    unsigned char bcc1;
+
+    while (state != STOP) {
+        int res = read(fd, &byte, 1);  // Read a byte from the serial port
+        if (res < 0) {
+            perror("Error reading from serial port");
+            return -1;
+        }
+
+        switch (state) {
+            case START:
+                if (byte == FLAG) {
+                    printf("FLAG = 0x%02X\n", byte);  // Print FLAG
+                    state = FLAG_RCV;
+                }
+                break;
+
+            case FLAG_RCV:
+                if (byte == A) {
+                    printf("ADDRESS = 0x%02X\n", byte);  // Print ADDRESS
+                    state = A_RCV;
+                } else if (byte != FLAG) {
+                    state = START;
+                }
+                break;
+
+            case A_RCV:
+                if (byte == C_SET) {
+                    printf("CONTROL = 0x%02X\n", byte);  // Print CONTROL
+                    state = C_RCV;
+                } else if (byte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+                break;
+
+            case C_RCV:
+                bcc1 = A ^ C_SET;  // Calcutate BCC1
+                if (byte == bcc1) {
+                    printf("BCC1 = 0x%02X\n", byte);  // Print BCC1
+                    state = BCC_OK;
+                } else if (byte == FLAG) {
+                    state = FLAG_RCV;
+                } else {
+                    state = START;
+                }
+                break;
+
+            case BCC_OK:
+                if (byte == FLAG) {  // The last FLAG closes the frame correctly
+                    printf("FLAG = 0x%02X\n", byte);  // Print seconde FLAG
+                    state = STOP;
+                } else {
+                    state = START;
+                }
+                break;
+
+            default:
+                state = START;
+                break;
+        }
+    }
+
+    printf("Frame SET received correctly!\n");
 
     // Loop for input
-    unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
+    /*unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
     while (STOP == FALSE)
     {
         int bytes = read(fd, buf, BUF_SIZE);
@@ -110,7 +183,7 @@ int main(int argc, char *argv[])
         if(buf[0] == 0x7E && buf[1] == 0x03 && buf[2] == 0x03 && buf[3] == 0x00 && buf[4] == 0x7E)
             STOP = TRUE;
 
-    }
+    }*/
     sleep(1);
 
     // Answer to Receiver
@@ -120,12 +193,12 @@ int main(int argc, char *argv[])
     unsigned char flag = 0x7E;
     unsigned char control = 0x07;
     unsigned char address = 0x03;
-    unsigned char bcc1 = control ^address;
+    unsigned char bcc1_1 = control ^address;
 
     buf_answer[0] = flag;
     buf_answer[1] = address;
     buf_answer[2] = control;
-    buf_answer[3] = bcc1;
+    buf_answer[3] = bcc1_1;
     buf_answer[4] = flag;
 
     int bytes = write(fd, buf_answer, BUF_SIZE);
